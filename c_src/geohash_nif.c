@@ -1,0 +1,144 @@
+#include <string.h>
+#include <ctype.h>
+#include <erl_nif.h>
+#include "geohash.h"
+
+static ErlNifResourceType *hashes_type;
+
+static ERL_NIF_TERM atom_error;
+static ERL_NIF_TERM atom_ok;
+static ERL_NIF_TERM atom_undefined;
+static ERL_NIF_TERM atom_true;
+static ERL_NIF_TERM atom_false;
+
+static void
+hashes_type_destructor(ErlNifEnv* env, void* obj)
+{
+    void **wrapper = (void**)obj;
+    destroy_vector(*wrapper);
+}
+
+static ERL_NIF_TERM
+make_atom(ErlNifEnv *env, const char *name)
+{
+    ERL_NIF_TERM ret;
+
+    if (enif_make_existing_atom(env, name, &ret, ERL_NIF_LATIN1)) {
+        return ret;
+    }
+    return enif_make_atom(env, name);
+}
+
+static int
+on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
+{
+
+    atom_ok = make_atom(env, "ok");
+    atom_error = make_atom(env, "error");
+    atom_undefined = make_atom(env, "undefined");
+    atom_true = make_atom(env, "true");
+    atom_false = make_atom(env, "false");
+
+    hashes_type = enif_open_resource_type(env, NULL, "hashes_type", hashes_type_destructor, ERL_NIF_RT_CREATE, NULL);
+
+    return 0;
+}
+
+static ERL_NIF_TERM
+nif_geo_radius_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    double lat;
+    double lon;
+    double distance;
+    int iterations;
+
+    if (!enif_get_double(env, argv[0], &lat))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[1], &lon))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[2], &distance))
+        return enif_make_badarg(env);
+
+    if (!enif_get_int(env, argv[3], &iterations))
+        return enif_make_badarg(env);
+
+    void *vector_pointer = geo_radius_hashes(lat, lon, distance, iterations);
+    void **pointer_wrapper = (void**)enif_alloc_resource(hashes_type, sizeof(void*));
+
+    *pointer_wrapper = vector_pointer;
+
+    ERL_NIF_TERM retval = enif_make_resource(env, (void*)pointer_wrapper);
+    enif_release_resource((void*)pointer_wrapper);
+
+    return retval;
+}
+
+static ERL_NIF_TERM
+nif_geo_radiuses_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned len;
+    int iterations;
+
+    if (!enif_get_list_length(env, argv[0], &len))
+        return enif_make_badarg(env);
+
+    if (!enif_get_int(env, argv[1], &iterations))
+        return enif_make_badarg(env);
+
+    void *vector_pointer = geo_radiuses_hashes(env, argv[0], len, iterations);
+
+    if (vector_pointer == NULL)
+        return enif_make_badarg(env);
+
+    void **pointer_wrapper = (void**)enif_alloc_resource(hashes_type, sizeof(void*));
+
+    *pointer_wrapper = vector_pointer;
+
+    ERL_NIF_TERM retval = enif_make_resource(env, (void*)pointer_wrapper);
+    enif_release_resource((void*)pointer_wrapper);
+
+    return retval;
+}
+
+static ERL_NIF_TERM
+nif_hashes_to_term(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    void **wrapper;
+
+    if (!enif_get_resource(env, argv[0], hashes_type, (void**)(&wrapper)))
+        return enif_make_badarg(env);
+
+    ERL_NIF_TERM retval = hashes_to_term(env, *wrapper);
+
+    return retval;
+}
+
+static ERL_NIF_TERM
+nif_point_in_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    double lat;
+    double lon;
+    void **wrapper;
+
+    if (!enif_get_double(env, argv[0], &lat))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[1], &lon))
+        return enif_make_badarg(env);
+
+    if (!enif_get_resource(env, argv[2], hashes_type, (void**)(&wrapper)))
+        return enif_make_badarg(env);
+
+    return point_in_hashes(lat, lon, *wrapper) ? atom_true : atom_false;
+}
+
+static ErlNifFunc nif_functions[] = {
+    {"geo_radius_hashes", 4, nif_geo_radius_hashes},
+    {"geo_radiuses_hashes", 2, nif_geo_radiuses_hashes},
+    {"nif_hashes_to_term", 1, nif_hashes_to_term},
+    {"point_in_hashes", 3, nif_point_in_hashes}
+};
+
+ERL_NIF_INIT(erl_geohash, nif_functions, &on_load, NULL, NULL, NULL);
