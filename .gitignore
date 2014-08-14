@@ -3,4 +3,7 @@ deps
 *.o
 *.beam
 *.plt
+*.so
 erl_crash.dump
+ebin/
+priv/visualize.html
