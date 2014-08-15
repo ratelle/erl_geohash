@@ -1,6 +1,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <erl_nif.h>
+#include <math.h>
 #include "geohash.h"
 
 static ErlNifResourceType *hashes_type;
@@ -134,11 +135,54 @@ nif_point_in_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return point_in_hashes(lat, lon, *wrapper) ? atom_true : atom_false;
 }
 
+double geo_distance(double latitude1, double longitude1, double latitude2, double longitude2) {
+    double dx, dy, dz;
+    longitude1 -= longitude2;
+    longitude1 = D2R(longitude1), latitude1 = D2R(latitude1), latitude2 = D2R(latitude2);
+
+    dz = sin(latitude1) - sin(latitude2);
+    dx = cos(longitude1) * cos(latitude1) - cos(latitude2);
+    dy = sin(longitude1) * cos(latitude1);
+
+    return asin(sqrt(dx*dx + dy*dy + dz*dz) / 2) * 2 * EARTH_RADIUS;
+}
+
+static ERL_NIF_TERM
+nif_point_in_circle(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    double point_lat;
+    double point_lon;
+
+    double circle_lat;
+    double circle_lon;
+    double circle_rad;
+
+    if (!enif_get_double(env, argv[0], &point_lat))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[1], &point_lon))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[2], &circle_lat))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[3], &circle_lon))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, argv[4], &circle_rad))
+        return enif_make_badarg(env);
+
+    double distance = geo_distance(point_lat, point_lon, circle_lat, circle_lon);
+
+    return distance <= circle_rad ? atom_true : atom_false;
+}
+
 static ErlNifFunc nif_functions[] = {
     {"geo_radius_hashes", 4, nif_geo_radius_hashes},
     {"geo_radiuses_hashes", 2, nif_geo_radiuses_hashes},
     {"nif_hashes_to_term", 1, nif_hashes_to_term},
-    {"point_in_hashes", 3, nif_point_in_hashes}
+    {"point_in_hashes", 3, nif_point_in_hashes},
+    {"point_in_circle", 5, nif_point_in_circle}
 };
 
 ERL_NIF_INIT(erl_geohash, nif_functions, &on_load, NULL, NULL, NULL);
