@@ -9,18 +9,6 @@
 
 using namespace std;
 
-typedef GeoRectangle<GeoRadianCoordinateSystem> GeoRadianRectangle;
-typedef GeoPoint<GeoRadianCoordinateSystem> GeoRadianPoint;
-
-typedef GeoRectangle<GeoDegreeCoordinateSystem> GeoDegreeRectangle;
-typedef GeoPoint<GeoDegreeCoordinateSystem> GeoDegreePoint;
-
-typedef uint64_t HashType;
-
-typedef GeoPrefix<GeoDegreeCoordinateSystem,HashType> Prefix;
-typedef GeoHash<GeoDegreeCoordinateSystem,HashType> Hash;
-typedef vector<Prefix> PrefixVector;
-
 GeoDegreeRectangle bounding_coordinates(GeoDegreePoint& point, double distance, double radius)
 {
 
@@ -176,6 +164,145 @@ void destroy_vector(void *vec)
     delete static_cast<PrefixVector*>(vec);
 }
 
+// TODO : implement destroy
+void destroy_index(void *index)
+{
+    return;
+}
+
+ERL_NIF_TERM
+GeoIndexNode::values_to_term(ErlNifEnv *env)
+{
+    unsigned size = values.size();
+    ERL_NIF_TERM *array = new ERL_NIF_TERM[size];
+    for (unsigned i = 0; i < size; i++)
+        array[i] = enif_make_int(env, values[i]);
+
+    ERL_NIF_TERM list = enif_make_list_from_array(env, array, size);
+
+    delete [] array;
+
+    return list;
+}
+
+ERL_NIF_TERM
+GeoIndexNode::children_to_term(ErlNifEnv *env)
+{
+    unsigned size = keys.size();
+    ERL_NIF_TERM *array = new ERL_NIF_TERM[size];
+    for (unsigned i = 0; i < size; i++)
+        array[i] = enif_make_tuple2(env, prefix_to_term(env, keys[i]), children[i]->to_term(env));
+
+    ERL_NIF_TERM list = enif_make_list_from_array(env, array, size);
+
+    delete [] array;
+
+    return list;
+}
+
+ERL_NIF_TERM
+GeoIndexNode::to_term(ErlNifEnv *env)
+{
+    ERL_NIF_TERM values = values_to_term(env);
+    ERL_NIF_TERM children = children_to_term(env);
+
+    return enif_make_tuple2(env, values, children);
+}
+
+void
+GeoIndexNode::point_values(vector<int>& results, Hash& point)
+{
+
+    results.insert(results.end(), values.begin(), values.end());
+
+    int min = 0;
+    int max = keys.size()-1;
+
+    while (max >= min)
+    {
+        int mid = min + ((max - min) / 2);
+        Prefix current_key = keys[mid];
+        if (current_key.applies_to(point))
+        {
+            children[mid]->point_values(results, point);
+            return;
+        }
+        else if(point.value() < current_key.value())
+            max = mid - 1;
+        else
+            min = mid + 1;
+    }
+
+}
+
+ERL_NIF_TERM
+GeoIndex::to_term(ErlNifEnv *env)
+{
+    return root.to_term(env);
+}
+
+void
+GeoIndex::point_values(vector<int>& results, double lat, double lon)
+{
+    GeoHasher<HashType> hasher;
+    GeoDegreePoint point(lon, lat);
+    Hash hash = hasher.hash(point);
+
+    results.reserve(n_values);
+
+    root.point_values(results, hash);
+
+}
+
+
+ERL_NIF_TERM
+index_to_term(ErlNifEnv *env, void *index_ptr)
+{
+    GeoIndex *index = static_cast<GeoIndex*>(index_ptr);
+
+    return index->to_term(env);
+}
+
+ERL_NIF_TERM
+point_index_values(ErlNifEnv *env, double lat, double lon, void *index_ptr)
+{
+    GeoIndex *index = static_cast<GeoIndex*>(index_ptr);
+    vector<int> results;
+
+    index->point_values(results, lat, lon);
+
+    unsigned size = results.size();
+
+    ERL_NIF_TERM *array = new ERL_NIF_TERM[size];
+
+    for (unsigned i = 0; i < size; i++)
+        array[i] = enif_make_int(env, results[i]);
+
+    ERL_NIF_TERM list = enif_make_list_from_array(env, array, size);
+
+    delete [] array;
+
+    return list;
+}
+
+
+ERL_NIF_TERM prefix_to_term(ErlNifEnv *env, Prefix& prefix)
+{
+    return enif_make_tuple2(env, enif_make_uint64(env, prefix.value()), enif_make_int(env, prefix.offset()));
+}
+
+ERL_NIF_TERM prefix_to_rectangle(ErlNifEnv *env, Prefix& prefix)
+{
+    GeoRectangle<GeoDegreeCoordinateSystem> bounds = prefix.bounds();
+    GeoPoint<GeoDegreeCoordinateSystem> ll = bounds.ll();
+    GeoPoint<GeoDegreeCoordinateSystem> ur = bounds.ur();
+
+    ERL_NIF_TERM ll_term = enif_make_tuple2(env, enif_make_double(env, ll.x()), enif_make_double(env, ll.y()));
+    ERL_NIF_TERM ur_term = enif_make_tuple2(env, enif_make_double(env, ur.x()), enif_make_double(env, ur.y()));
+
+    return enif_make_tuple2(env, ll_term, ur_term);
+}
+
 ERL_NIF_TERM hashes_to_term(ErlNifEnv *env, void *vec)
 {
     PrefixVector *prefixes = static_cast<PrefixVector*>(vec);
@@ -187,16 +314,32 @@ ERL_NIF_TERM hashes_to_term(ErlNifEnv *env, void *vec)
     for (unsigned i = 0; i < size; i++)
     {
         Prefix prefix = (*prefixes)[i];
-        GeoRectangle<GeoDegreeCoordinateSystem> bounds = prefix.bounds();
-        GeoPoint<GeoDegreeCoordinateSystem> ll = bounds.ll();
-        GeoPoint<GeoDegreeCoordinateSystem> ur = bounds.ur();
-
-        ERL_NIF_TERM ll_term = enif_make_tuple2(env, enif_make_double(env, ll.x()), enif_make_double(env, ll.y()));
-        ERL_NIF_TERM ur_term = enif_make_tuple2(env, enif_make_double(env, ur.x()), enif_make_double(env, ur.y()));
-        ERL_NIF_TERM tuple = enif_make_tuple4(env, enif_make_uint64(env, prefix.value()), enif_make_int(env, prefix.offset()), ll_term, ur_term);
-
-        prefix_list[i] = tuple;
+        prefix_list[i] = prefix_to_term(env, prefix);
     }
 
     return enif_make_list_from_array(env, prefix_list, size);
+}
+
+ERL_NIF_TERM hashes_to_rectangles(ErlNifEnv *env, void *vec)
+{
+    PrefixVector *prefixes = static_cast<PrefixVector*>(vec);
+
+    unsigned size = prefixes->size();
+
+    ERL_NIF_TERM *prefix_list = new ERL_NIF_TERM[size];
+
+    for (unsigned i = 0; i < size; i++)
+    {
+        Prefix prefix = (*prefixes)[i];
+        prefix_list[i] = prefix_to_rectangle(env, prefix);
+    }
+
+    return enif_make_list_from_array(env, prefix_list, size);
+}
+
+void *
+build_index(void **vectors, int *values, unsigned length)
+{
+    GeoIndex *index = new GeoIndex(vectors, values, length);
+    return static_cast<void*>(index);
 }
