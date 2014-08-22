@@ -292,8 +292,8 @@ nif_point_in_circle(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 static ErlNifFunc nif_functions[] = {
     {"geo_radius_hashes", 4, nif_geo_radius_hashes},
     {"geo_radiuses_hashes", 2, nif_geo_radiuses_hashes},
-    {"nif_hashes_to_term", 1, nif_hashes_to_term},
-    {"nif_index_to_term", 1, nif_index_to_term},
+    {"hashes_to_term", 1, nif_hashes_to_term},
+    {"index_to_term", 1, nif_index_to_term},
     {"hashes_to_rectangles", 1, nif_hashes_to_rectangles},
     {"point_in_hashes", 3, nif_point_in_hashes},
     {"point_in_circle", 5, nif_point_in_circle},
