@@ -55,6 +55,15 @@ class GeoIndexNode {
         children.push_back(child);
     }
 
+    ~GeoIndexNode()
+    {
+        unsigned size = children.size();
+        for (unsigned i = 0; i < size; i++)
+        {
+            delete children[i];
+        }
+    }
+
     void insert(Prefix& new_key, int new_value);
     void add(int new_value) { values.push_back(new_value); }
 

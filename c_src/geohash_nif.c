@@ -114,16 +114,16 @@ nif_geo_radiuses_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return retval;
 }
 
-// Once again there's no proper cleanup here. Shopping for memleaks
 static ERL_NIF_TERM
 nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned len;
-    int *values;
-    void **vectors;
+    int *values = NULL;
+    void **vectors = NULL;
+    ERL_NIF_TERM retval = enif_make_badarg(env);
 
     if (!enif_get_list_length(env, argv[0], &len))
-        return enif_make_badarg(env);
+        goto cleanup;
 
     values = (int *)malloc(len * sizeof(int));
     vectors = (void **)malloc(len * sizeof(void*));
@@ -140,17 +140,16 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         enif_get_tuple(env, current, &arity, &tuple);
 
         if (arity != 2)
-            // Clean yourself here
-            return enif_make_badarg(env);
+            goto cleanup;
 
         int value;
         void **wrapper;
 
         if (!enif_get_int(env, tuple[0], &value))
-            return enif_make_badarg(env);
+            goto cleanup;
 
         if (!enif_get_resource(env, tuple[1], hashes_type, (void**)(&wrapper)))
-            return enif_make_badarg(env);
+            goto cleanup;
 
         values[i] = value;
         vectors[i] = *wrapper;
@@ -161,11 +160,15 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     *pointer_wrapper = index_pointer;
 
-    ERL_NIF_TERM retval = enif_make_resource(env, (void*)pointer_wrapper);
-
+    retval = enif_make_resource(env, (void*)pointer_wrapper);
     enif_release_resource((void*)pointer_wrapper);
-    free(values);
-    free(vectors);
+
+ cleanup:
+
+    if (values != NULL)
+        free(values);
+    if (vectors != NULL)
+        free(vectors);
 
     return retval;
 }

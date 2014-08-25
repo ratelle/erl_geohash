@@ -189,7 +189,7 @@ test_index(CircleN, ListN) ->
     ),
 
     print_index(Term),
-    Index.
+    ok.
 
 print_index({[], Keys}) ->
     lists:foreach(fun (Key) -> print_key(Key, 0) end, Keys).

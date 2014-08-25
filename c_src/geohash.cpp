@@ -103,7 +103,6 @@ geo_radiuses_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int itera
         enif_get_list_cell(env, lst, &current, &lst);
         enif_get_tuple(env, current, &arity, &tuple);
         if (arity != 3)
-            // Clean yourself here
             return NULL;
 
         double lat;
@@ -164,10 +163,9 @@ void destroy_vector(void *vec)
     delete static_cast<PrefixVector*>(vec);
 }
 
-// TODO : implement destroy
 void destroy_index(void *index)
 {
-    return;
+    delete static_cast<GeoIndex*>(index);
 }
 
 ERL_NIF_TERM
@@ -317,7 +315,11 @@ ERL_NIF_TERM hashes_to_term(ErlNifEnv *env, void *vec)
         prefix_list[i] = prefix_to_term(env, prefix);
     }
 
-    return enif_make_list_from_array(env, prefix_list, size);
+    ERL_NIF_TERM lst = enif_make_list_from_array(env, prefix_list, size);
+
+    delete [] prefix_list;
+
+    return lst;
 }
 
 ERL_NIF_TERM hashes_to_rectangles(ErlNifEnv *env, void *vec)
@@ -334,7 +336,11 @@ ERL_NIF_TERM hashes_to_rectangles(ErlNifEnv *env, void *vec)
         prefix_list[i] = prefix_to_rectangle(env, prefix);
     }
 
-    return enif_make_list_from_array(env, prefix_list, size);
+    ERL_NIF_TERM lst = enif_make_list_from_array(env, prefix_list, size);
+
+    delete [] prefix_list;
+
+    return lst;
 }
 
 void *
