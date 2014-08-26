@@ -147,35 +147,35 @@ benchmark(NLists, NCircles, _NPoints, MinLat, MaxLat, MinLong, MaxLong, MinRadiu
     %% CirclesResults = timing:function(fun () -> points_in_all_circles(Points, CirclesLists) end, ?N, ?P),
     %% {IndexResults, HashesResults, CirclesResults}.
 
-point_in_all_hashes_no_accum(Point, [Hashes | Rest]) ->
-    erl_geohash:point_in_hashes(Point, Hashes),
-    point_in_all_hashes_no_accum(Point, Rest);
-point_in_all_hashes_no_accum(_, []) ->
-    ok.
+%% point_in_all_hashes_no_accum(Point, [Hashes | Rest]) ->
+%%     erl_geohash:point_in_hashes(Point, Hashes),
+%%     point_in_all_hashes_no_accum(Point, Rest);
+%% point_in_all_hashes_no_accum(_, []) ->
+%%     ok.
 
-point_in_all_circles_no_accum(Point, [Circles | Rest]) ->
-    erl_geohash:point_in_circles(Point, Circles),
-    point_in_all_circles_no_accum(Point, Rest);
-point_in_all_circles_no_accum(_, []) ->
-    ok.
+%% point_in_all_circles_no_accum(Point, [Circles | Rest]) ->
+%%     erl_geohash:point_in_circles(Point, Circles),
+%%     point_in_all_circles_no_accum(Point, Rest);
+%% point_in_all_circles_no_accum(_, []) ->
+%%     ok.
 
-points_in_index([Point | Points], Index) ->
-    erl_geohash:point_index_values(Point, Index),
-    points_in_index(Points, Index);
-points_in_index([], _) ->
-    ok.
+%% points_in_index([Point | Points], Index) ->
+%%     erl_geohash:point_index_values(Point, Index),
+%%     points_in_index(Points, Index);
+%% points_in_index([], _) ->
+%%     ok.
 
-points_in_all_hashes([Point | Points], AllHashes) ->
-    point_in_all_hashes_no_accum(Point, AllHashes),
-    points_in_all_hashes(Points, AllHashes);
-points_in_all_hashes([], _) ->
-    ok.
+%% points_in_all_hashes([Point | Points], AllHashes) ->
+%%     point_in_all_hashes_no_accum(Point, AllHashes),
+%%     points_in_all_hashes(Points, AllHashes);
+%% points_in_all_hashes([], _) ->
+%%     ok.
 
-points_in_all_circles([Point | Points], AllCircles) ->
-    point_in_all_circles_no_accum(Point, AllCircles),
-    points_in_all_circles(Points, AllCircles);
-points_in_all_circles([], _) ->
-    ok.
+%% points_in_all_circles([Point | Points], AllCircles) ->
+%%     point_in_all_circles_no_accum(Point, AllCircles),
+%%     points_in_all_circles(Points, AllCircles);
+%% points_in_all_circles([], _) ->
+%%     ok.
 
 test_index(CircleN, ListN) ->
     CirclesList = [{I, random_circles(CircleN)} || I <- lists:seq(1, ListN)],
@@ -211,8 +211,8 @@ point_in_circles(PointLat, PointLon, [{CircleLat, CircleLon, CircleRadius} | Res
 point_in_circles(_, _, []) ->
     false.
 
-points_in_hashes(Points, Hashes) ->
-    [erl_geohash:point_in_hashes(Point, Hashes) || Point <- Points].
+%% points_in_hashes(Points, Hashes) ->
+%%     [erl_geohash:point_in_hashes(Point, Hashes) || Point <- Points].
 
 hashes_to_term(Hashes) ->
     Lst = erl_geohash:hashes_to_term(Hashes),
