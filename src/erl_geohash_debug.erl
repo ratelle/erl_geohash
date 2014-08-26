@@ -180,7 +180,7 @@ points_in_all_circles([], _) ->
 test_index(CircleN, ListN) ->
     CirclesList = [{I, random_circles(CircleN)} || I <- lists:seq(1, ListN)],
     GeoHashes = [{I, erl_geohash:geo_radiuses_hashes(Circles, 20)} || {I, Circles} <- CirclesList],
-    Index = erl_geohash:build_index(GeoHashes),
+    Index = erl_geohash:async_build_index(CirclesList, 20),
     Term = erl_geohash:index_to_term(Index),
 
     visualize(

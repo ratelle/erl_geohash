@@ -6,6 +6,7 @@
 
 static ErlNifResourceType *hashes_type;
 static ErlNifResourceType *index_type;
+static ErlNifResourceType *index_builder_type;
 
 static ERL_NIF_TERM atom_error;
 static ERL_NIF_TERM atom_ok;
@@ -50,8 +51,8 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
     atom_false = make_atom(env, "false");
 
     hashes_type = enif_open_resource_type(env, NULL, "hashes_type", hashes_type_destructor, ERL_NIF_RT_CREATE, NULL);
-
     index_type = enif_open_resource_type(env, NULL, "index_type", index_type_destructor, ERL_NIF_RT_CREATE, NULL);
+    index_builder_type = enif_open_resource_type(env, NULL, "index_builder_type", NULL, ERL_NIF_RT_CREATE, NULL);
 
     return 0;
 }
@@ -120,7 +121,140 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     unsigned len;
     int *values = NULL;
     void **vectors = NULL;
-    ERL_NIF_TERM retval = enif_make_badarg(env);
+    int successful = 0;
+    ERL_NIF_TERM retval;
+
+    if (!enif_get_list_length(env, argv[0], &len))
+        goto cleanup;
+
+    values = (int *)malloc(len * sizeof(int));
+    vectors = (void **)malloc(len * sizeof(void*));
+
+    unsigned i;
+    ERL_NIF_TERM lst = argv[0];
+    for (i = 0; i < len; i++)
+    {
+        ERL_NIF_TERM current;
+        const ERL_NIF_TERM *tuple;
+        int arity;
+
+        enif_get_list_cell(env, lst, &current, &lst);
+        enif_get_tuple(env, current, &arity, &tuple);
+
+        if (arity != 2)
+            goto cleanup;
+
+        int value;
+        void **wrapper;
+
+        if (!enif_get_int(env, tuple[0], &value))
+            goto cleanup;
+
+        ERL_NIF_TERM hashes_argv[2] = {tuple[1], argv[1]};
+        ERL_NIF_TERM hashes = nif_geo_radiuses_hashes(env, 2, hashes_argv);
+
+        if (!enif_get_resource(env, hashes, hashes_type, (void**)(&wrapper)))
+            goto cleanup;
+
+        values[i] = value;
+        vectors[i] = *wrapper;
+    }
+
+    void *index_pointer = build_index(vectors, values, len);
+    void **pointer_wrapper = (void**)enif_alloc_resource(index_type, sizeof(void*));
+
+    *pointer_wrapper = index_pointer;
+
+    retval = enif_make_resource(env, (void*)pointer_wrapper);
+    enif_release_resource((void*)pointer_wrapper);
+    successful = 1;
+
+ cleanup:
+
+    if (!successful)
+        retval = enif_make_badarg(env);
+
+    if (values != NULL)
+        free(values);
+    if (vectors != NULL)
+        free(vectors);
+
+    return retval;
+}
+
+struct index_env {
+    ErlNifEnv *env;
+    ERL_NIF_TERM ref;
+    ErlNifPid pid;
+    ERL_NIF_TERM argv[2];
+};
+
+static void *
+async_build_index_thread(void *args)
+{
+    struct index_env *ie = (struct index_env*)args;
+
+    ERL_NIF_TERM result = nif_build_index(ie->env, 2, ie->argv);
+    ERL_NIF_TERM msg;
+
+    if (enif_is_exception(ie->env, result))
+        msg = enif_make_tuple2(ie->env, ie->ref, atom_error);
+    else
+        msg = enif_make_tuple2(ie->env, ie->ref, result);
+
+    enif_send(NULL, &(ie->pid), ie->env, msg);
+
+    enif_free_env(ie->env);
+    free(ie);
+    return NULL;
+}
+
+static ERL_NIF_TERM
+nif_async_start_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ERL_NIF_TERM ref = enif_make_ref(env);
+    ErlNifTid *tid = enif_alloc_resource(index_builder_type, sizeof(ErlNifTid));
+    ERL_NIF_TERM retval;
+
+    struct index_env *ie = malloc(sizeof(struct index_env));
+    ie->env = enif_alloc_env();
+    ie->argv[0] = enif_make_copy(ie->env, argv[0]);
+    ie->argv[1] = enif_make_copy(ie->env, argv[1]);
+    ie->ref = enif_make_copy(ie->env, ref);
+    enif_self(env, &(ie->pid));
+
+    if (enif_thread_create("geo_radius_index_builder", tid, async_build_index_thread, (void*)ie, NULL) == 0)
+        retval = enif_make_tuple2(env, ref, enif_make_resource(env, tid));
+    else
+    {
+        free(ie);
+        retval = enif_make_badarg(env);
+    }
+
+    enif_release_resource(tid);
+    return retval;
+}
+
+static ERL_NIF_TERM
+nif_async_finish_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ErlNifTid *tid;
+    if (!enif_get_resource(env, argv[0], index_builder_type, (void*)&tid))
+        return enif_make_badarg(env);
+
+    enif_thread_join(*tid, NULL);
+
+    return atom_ok;
+}
+
+static ERL_NIF_TERM
+nif_old_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned len;
+    int *values = NULL;
+    void **vectors = NULL;
+    int successful = 0;
+    ERL_NIF_TERM retval;
 
     if (!enif_get_list_length(env, argv[0], &len))
         goto cleanup;
@@ -162,8 +296,12 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     retval = enif_make_resource(env, (void*)pointer_wrapper);
     enif_release_resource((void*)pointer_wrapper);
+    successful = 1;
 
  cleanup:
+
+    if (!successful)
+        retval = enif_make_badarg(env);
 
     if (values != NULL)
         free(values);
@@ -301,7 +439,10 @@ static ErlNifFunc nif_functions[] = {
     {"point_in_hashes", 3, nif_point_in_hashes},
     {"point_in_circle", 5, nif_point_in_circle},
     {"point_index_values", 3, nif_point_index_values},
-    {"build_index", 1, nif_build_index}
+    {"old_build_index", 1, nif_old_build_index},
+    {"build_index", 2, nif_build_index},
+    {"nif_async_start_build_index", 2, nif_async_start_build_index},
+    {"nif_async_finish_build_index", 1, nif_async_finish_build_index}
 };
 
 ERL_NIF_INIT(erl_geohash, nif_functions, &on_load, NULL, NULL, NULL);

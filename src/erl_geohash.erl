@@ -2,7 +2,9 @@
 
 -export([
     init/0,
-    build_index/1,
+    old_build_index/1,
+    build_index/2,
+    async_build_index/2,
     geo_radius_hashes/4,
     geo_radiuses_hashes/2,
     hashes_to_term/1,
@@ -44,8 +46,28 @@ geo_radius_hashes(_Lat, _Long, _Distance, _Iterations) ->
 geo_radiuses_hashes(_Radiuses, _Iterations) ->
     {error, geohash_nif_not_loaded}.
 
-build_index(_HashLists) ->
+old_build_index(_HashLists) ->
     {error, geohash_nif_not_loaded}.
+
+build_index(_Lists, _Iterations) ->
+    {error, geohash_nif_not_loaded}.
+
+nif_async_start_build_index(_Lists, _Iterations) ->
+    {error, geohash_nif_not_loaded}.
+
+nif_async_finish_build_index(_Tid) ->
+    {error, geohash_nif_not_loaded}.
+
+async_build_index(Lists, Iterations) ->
+    {Ref, Tid} = nif_async_start_build_index(Lists, Iterations),
+    receive
+        {Ref, error} ->
+            nif_async_finish_build_index(Tid),
+            error(badarg);
+        {Ref, Result} ->
+            nif_async_finish_build_index(Tid),
+            Result
+    end.
 
 hashes_to_term(_Hashes) ->
     {error, geohash_nif_not_loaded}.
