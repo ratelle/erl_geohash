@@ -58,38 +58,7 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 }
 
 static ERL_NIF_TERM
-nif_geo_radius_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    double lat;
-    double lon;
-    double distance;
-    int iterations;
-
-    if (!enif_get_double(env, argv[0], &lat))
-        return enif_make_badarg(env);
-
-    if (!enif_get_double(env, argv[1], &lon))
-        return enif_make_badarg(env);
-
-    if (!enif_get_double(env, argv[2], &distance))
-        return enif_make_badarg(env);
-
-    if (!enif_get_int(env, argv[3], &iterations))
-        return enif_make_badarg(env);
-
-    void *vector_pointer = geo_radius_hashes(lat, lon, distance, iterations);
-    void **pointer_wrapper = (void**)enif_alloc_resource(hashes_type, sizeof(void*));
-
-    *pointer_wrapper = vector_pointer;
-
-    ERL_NIF_TERM retval = enif_make_resource(env, (void*)pointer_wrapper);
-    enif_release_resource((void*)pointer_wrapper);
-
-    return retval;
-}
-
-static ERL_NIF_TERM
-nif_geo_radiuses_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned len;
     int iterations;
@@ -100,7 +69,7 @@ nif_geo_radiuses_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     if (!enif_get_int(env, argv[1], &iterations))
         return enif_make_badarg(env);
 
-    void *vector_pointer = geo_radiuses_hashes(env, argv[0], len, iterations);
+    void *vector_pointer = radius_list_to_hashes(env, argv[0], len, iterations);
 
     if (vector_pointer == NULL)
         return enif_make_badarg(env);
@@ -151,7 +120,7 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
             goto cleanup;
 
         ERL_NIF_TERM hashes_argv[2] = {tuple[1], argv[1]};
-        ERL_NIF_TERM hashes = nif_geo_radiuses_hashes(env, 2, hashes_argv);
+        ERL_NIF_TERM hashes = nif_radius_list_to_hashes(env, 2, hashes_argv);
 
         if (!enif_get_resource(env, hashes, hashes_type, (void**)(&wrapper)))
             goto cleanup;
@@ -245,70 +214,6 @@ nif_async_finish_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
     enif_thread_join(*tid, NULL);
 
     return atom_ok;
-}
-
-static ERL_NIF_TERM
-nif_old_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned len;
-    int *values = NULL;
-    void **vectors = NULL;
-    int successful = 0;
-    ERL_NIF_TERM retval;
-
-    if (!enif_get_list_length(env, argv[0], &len))
-        goto cleanup;
-
-    values = (int *)malloc(len * sizeof(int));
-    vectors = (void **)malloc(len * sizeof(void*));
-
-    unsigned i;
-    ERL_NIF_TERM lst = argv[0];
-    for (i = 0; i < len; i++)
-    {
-        ERL_NIF_TERM current;
-        const ERL_NIF_TERM *tuple;
-        int arity;
-
-        enif_get_list_cell(env, lst, &current, &lst);
-        enif_get_tuple(env, current, &arity, &tuple);
-
-        if (arity != 2)
-            goto cleanup;
-
-        int value;
-        void **wrapper;
-
-        if (!enif_get_int(env, tuple[0], &value))
-            goto cleanup;
-
-        if (!enif_get_resource(env, tuple[1], hashes_type, (void**)(&wrapper)))
-            goto cleanup;
-
-        values[i] = value;
-        vectors[i] = *wrapper;
-    }
-
-    void *index_pointer = build_index(vectors, values, len);
-    void **pointer_wrapper = (void**)enif_alloc_resource(index_type, sizeof(void*));
-
-    *pointer_wrapper = index_pointer;
-
-    retval = enif_make_resource(env, (void*)pointer_wrapper);
-    enif_release_resource((void*)pointer_wrapper);
-    successful = 1;
-
- cleanup:
-
-    if (!successful)
-        retval = enif_make_badarg(env);
-
-    if (values != NULL)
-        free(values);
-    if (vectors != NULL)
-        free(vectors);
-
-    return retval;
 }
 
 static ERL_NIF_TERM
@@ -431,15 +336,13 @@ nif_point_in_circle(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ErlNifFunc nif_functions[] = {
-    {"geo_radius_hashes", 4, nif_geo_radius_hashes},
-    {"geo_radiuses_hashes", 2, nif_geo_radiuses_hashes},
+    {"radius_list_to_hashes", 2, nif_radius_list_to_hashes},
     {"hashes_to_term", 1, nif_hashes_to_term},
     {"index_to_term", 1, nif_index_to_term},
     {"hashes_to_rectangles", 1, nif_hashes_to_rectangles},
     {"point_in_hashes", 3, nif_point_in_hashes},
     {"point_in_circle", 5, nif_point_in_circle},
     {"point_index_values", 3, nif_point_index_values},
-    {"old_build_index", 1, nif_old_build_index},
     {"build_index", 2, nif_build_index},
     {"nif_async_start_build_index", 2, nif_async_start_build_index},
     {"nif_async_finish_build_index", 1, nif_async_finish_build_index}

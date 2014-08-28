@@ -45,7 +45,7 @@ GeoDegreeRectangle bounding_coordinates(GeoDegreePoint& point, double distance, 
 }
 
 PrefixVector
-internal_geo_radius_hashes(double lat, double lon, double distance, int iterations)
+internal_radius_to_hashes(double lat, double lon, double distance, int iterations)
 {
     GeoDegreePoint point (lon, lat);
     GeoDegreeRectangle box = bounding_coordinates(point, distance, EARTH_RADIUS);
@@ -53,15 +53,6 @@ internal_geo_radius_hashes(double lat, double lon, double distance, int iteratio
     Prefix::search_prefixes(box, prefixes, iterations);
 
     return prefixes;
-}
-
-void *
-geo_radius_hashes(double lat, double lon, double distance, int iterations)
-{
-    PrefixVector prefixes = internal_geo_radius_hashes(lat, lon, distance, iterations);
-    PrefixVector *prefixes_ptr = new PrefixVector(prefixes);
-
-    return static_cast<void*>(prefixes_ptr);
 }
 
 PrefixVector
@@ -91,7 +82,7 @@ merge_prefixes(PrefixVector& prefixes)
 }
 
 void *
-geo_radiuses_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int iterations)
+radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int iterations)
 {
     PrefixVector all_prefixes;
 
@@ -119,7 +110,7 @@ geo_radiuses_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int itera
         if (!enif_get_double(env, tuple[2], &distance))
             return NULL;
 
-        PrefixVector prefixes = internal_geo_radius_hashes(lat, lon, distance, iterations);
+        PrefixVector prefixes = internal_radius_to_hashes(lat, lon, distance, iterations);
         all_prefixes.insert(all_prefixes.end(), prefixes.begin(), prefixes.end());
     }
 

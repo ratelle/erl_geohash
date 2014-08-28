@@ -9,8 +9,7 @@
 extern "C" {
 #endif
 
-    void *geo_radius_hashes(double lat, double lon, double distance, int iterations);
-    void *geo_radiuses_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int iterations);
+    void *radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int iterations);
     int point_in_hashes(double lat, double lon, void *vec);
     void destroy_vector(void *vec);
     void destroy_index(void *index);

@@ -2,7 +2,6 @@
 
 -export([
     prefix_to_binary/1,
-    debug_radius/4,
     debug_radiuses/2,
     random_circles/1,
     random_circles/7,
@@ -24,7 +23,7 @@ priv_dir() ->
     end.
 
 visualize_hashes(Circles, Iterations) ->
-    Hashes = erl_geohash:geo_radiuses_hashes(Circles, Iterations),
+    Hashes = erl_geohash:radius_list_to_hashes(Circles, Iterations),
     Rectangles = erl_geohash:hashes_to_rectangles(Hashes),
     visualize([Circles], [Rectangles]).
 
@@ -70,11 +69,8 @@ visualize(CirclesList, RectanglesList) ->
     NewContent = binary:replace(Content, <<"__GEOHASH_ELEMS__">>, Json),
     file:write_file(filename:join(Priv, "visualize.html"), NewContent).
 
-debug_radius(Lat, Long, Distance, Iterations) ->
-    hashes_to_term(erl_geohash:geo_radius_hashes(Lat, Long, Distance, Iterations)).
-
 debug_radiuses(Radiuses, Iterations) ->
-    hashes_to_term(erl_geohash:geo_radiuses_hashes(Radiuses, Iterations)).
+    hashes_to_term(erl_geohash:radius_list_to_hashes(Radiuses, Iterations)).
 
 rectangles_to_ejson(Rectangles) ->
     [{[{<<"ll">>, {[{<<"lat">>, LlLat}, {<<"lon">>, LlLon}]}},
@@ -94,7 +90,7 @@ verify(NLists, NCircles, NPoints, Precision) ->
     MinRadius = 1.0,
     MaxRadius = 20.0,
     CirclesLists = lists:zip(lists:seq(1,NLists), make_n(fun () -> random_circles(NCircles, MinLat, MaxLat, MinLon, MaxLon, MinRadius, MaxRadius) end, NLists)),
-    HashesLists = [{I, erl_geohash:geo_radiuses_hashes(Circles, Precision)} || {I, Circles} <- CirclesLists],
+    HashesLists = [{I, erl_geohash:radius_list_to_hashes(Circles, Precision)} || {I, Circles} <- CirclesLists],
     Index = erl_geohash:build_index(HashesLists),
     Points = random_points(NPoints, MinLat, MaxLat, MinLon, MaxLon),
     check(CirclesLists, HashesLists, Index, Points).
@@ -135,7 +131,7 @@ benchmark(NLists, NCircles, _NPoints, MinLat, MaxLat, MinLong, MaxLong, MinRadiu
     CirclesLists = make_n(fun () -> random_circles(NCircles, MinLat, MaxLat, MinLong, MaxLong, MinRadius, MaxRadius) end, NLists),
     %Points = random_points(NPoints, MinLat, MaxLat, MinLong, MaxLong),
     Timestamp = os:timestamp(),
-    HashesLists = [erl_geohash:geo_radiuses_hashes(Circles, 20) || Circles <- CirclesLists],
+    HashesLists = [erl_geohash:radius_list_to_hashes(Circles, 20) || Circles <- CirclesLists],
     io:format("~p~n",[timer:now_diff(os:timestamp(), Timestamp)]),
     Timestamp2 = os:timestamp(),
     erl_geohash:build_index(lists:zip(lists:seq(1, NLists), HashesLists)),
@@ -179,7 +175,7 @@ benchmark(NLists, NCircles, _NPoints, MinLat, MaxLat, MinLong, MaxLong, MinRadiu
 
 test_index(CircleN, ListN) ->
     CirclesList = [{I, random_circles(CircleN)} || I <- lists:seq(1, ListN)],
-    GeoHashes = [{I, erl_geohash:geo_radiuses_hashes(Circles, 20)} || {I, Circles} <- CirclesList],
+    GeoHashes = [{I, erl_geohash:radius_list_to_hashes(Circles, 20)} || {I, Circles} <- CirclesList],
     Index = erl_geohash:async_build_index(CirclesList, 20),
     Term = erl_geohash:index_to_term(Index),
 
