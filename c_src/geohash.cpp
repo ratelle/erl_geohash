@@ -122,10 +122,10 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
         if (n_boxes == 0)
             return NULL;
 
-        for (unsigned i = 0; i < n_boxes; i++)
+        for (unsigned j = 0; j < n_boxes; i++)
         {
             PrefixVector prefixes;
-            Prefix::search_prefixes(boxes[i], prefixes, iterations/n_boxes);
+            Prefix::search_prefixes(boxes[j], prefixes, iterations/n_boxes);
             all_prefixes.insert(all_prefixes.end(), prefixes.begin(), prefixes.end());
         }
 
