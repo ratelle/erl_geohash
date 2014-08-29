@@ -58,6 +58,33 @@ on_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 }
 
 static ERL_NIF_TERM
+nif_circle_to_bounding_box(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    const ERL_NIF_TERM *tuple;
+    int arity;
+    enif_get_tuple(env, argv[0], &arity, &tuple);
+
+    if (arity != 3)
+        return enif_make_badarg(env);
+
+    double lat;
+    double lon;
+    double radius;
+
+    if (!enif_get_double(env, tuple[0], &lat))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, tuple[1], &lon))
+        return enif_make_badarg(env);
+
+    if (!enif_get_double(env, tuple[2], &radius))
+        return enif_make_badarg(env);
+
+    return circle_to_bounding_box(env, lat, lon, radius);
+}
+
+
+static ERL_NIF_TERM
 nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned len;
@@ -336,6 +363,7 @@ nif_point_in_circle(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ErlNifFunc nif_functions[] = {
+    {"circle_to_bounding_box", 1, nif_circle_to_bounding_box},
     {"radius_list_to_hashes", 2, nif_radius_list_to_hashes},
     {"hashes_to_term", 1, nif_hashes_to_term},
     {"index_to_term", 1, nif_index_to_term},

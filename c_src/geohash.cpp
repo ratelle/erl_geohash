@@ -9,14 +9,12 @@
 
 using namespace std;
 
-GeoDegreeRectangle bounding_coordinates(GeoDegreePoint& point, double distance, double radius)
+GeoDegreeRectangle *bounding_coordinates(GeoDegreePoint& point, double distance, double radius, unsigned *size)
 {
 
     double xrange[2];
     double yrange[2];
     GeoRadianCoordinateSystem::GetRanges(xrange, yrange);
-
-    // Should check for <0 double args
 
     double radLat = D2R(point.y());
     double radLon = D2R(point.x());
@@ -27,32 +25,33 @@ GeoDegreeRectangle bounding_coordinates(GeoDegreePoint& point, double distance, 
     double minLon;
     double maxLon;
 
-    if (minLat > yrange[0] && maxLat < yrange[1]) {
-        double deltaLon = asin(sin(radDist) / cos(radLat));
-        minLon = radLon - deltaLon;
-        if (minLon < xrange[0]) minLon += 2.0 * M_PI;
-        maxLon = radLon + deltaLon;
-        if (maxLon > xrange[1]) maxLon -= 2.0 * M_PI;
-    } else {
-        // a pole is within the distance
-        minLat = max(minLat, yrange[0]);
-        maxLat = min(maxLat, yrange[1]);
-        minLon = xrange[0];
-        maxLon = xrange[1];
+    if (minLat <= yrange[0] || maxLat >= yrange[1])
+    {
+        *size = 0;
+        return NULL;
     }
 
-    return GeoDegreeRectangle(R2D(minLon), R2D(minLat), R2D(maxLon), R2D(maxLat));
-}
+    double deltaLon = asin(sin(radDist) / cos(radLat));
+    minLon = radLon - deltaLon;
+    if (minLon < xrange[0]) minLon += 2.0 * M_PI;
+    maxLon = radLon + deltaLon;
+    if (maxLon > xrange[1]) maxLon -= 2.0 * M_PI;
 
-PrefixVector
-internal_radius_to_hashes(double lat, double lon, double distance, int iterations)
-{
-    GeoDegreePoint point (lon, lat);
-    GeoDegreeRectangle box = bounding_coordinates(point, distance, EARTH_RADIUS);
-    PrefixVector prefixes;
-    Prefix::search_prefixes(box, prefixes, iterations);
-
-    return prefixes;
+    if (minLon > maxLon)
+    {
+        GeoDegreeRectangle *retval = new GeoDegreeRectangle[2];
+        retval[0] = GeoDegreeRectangle(R2D(minLon), R2D(minLat), 180.0, R2D(maxLat));
+        retval[1] = GeoDegreeRectangle(-180.0, R2D(minLat), R2D(maxLon), R2D(maxLat));
+        *size = 2;
+        return retval;
+    }
+    else
+    {
+        GeoDegreeRectangle *retval = new GeoDegreeRectangle[1];
+        retval[0] = GeoDegreeRectangle(R2D(minLon), R2D(minLat), R2D(maxLon), R2D(maxLat));
+        *size = 1;
+        return retval;
+    }
 }
 
 PrefixVector
@@ -104,7 +103,6 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
         double lon;
         double distance;
 
-        // And clean yourself here
         if (!enif_get_double(env, tuple[0], &lat))
             return NULL;
 
@@ -117,8 +115,21 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
         if (lon < xrange[0] || lon > xrange[1] || lat < yrange[0] || lat > yrange[1] || distance < 0 || distance > MAX_DISTANCE )
             return NULL;
 
-        PrefixVector prefixes = internal_radius_to_hashes(lat, lon, distance, iterations);
-        all_prefixes.insert(all_prefixes.end(), prefixes.begin(), prefixes.end());
+        GeoDegreePoint point (lon, lat);
+        unsigned n_boxes;
+        GeoDegreeRectangle *boxes = bounding_coordinates(point, distance, EARTH_RADIUS, &n_boxes);
+
+        if (n_boxes == 0)
+            return NULL;
+
+        for (unsigned i = 0; i < n_boxes; i++)
+        {
+            PrefixVector prefixes;
+            Prefix::search_prefixes(boxes[i], prefixes, iterations/n_boxes);
+            all_prefixes.insert(all_prefixes.end(), prefixes.begin(), prefixes.end());
+        }
+
+        delete [] boxes;
     }
 
     sort (all_prefixes.begin(), all_prefixes.end());
@@ -281,6 +292,34 @@ point_index_values(ErlNifEnv *env, double lat, double lon, void *index_ptr)
     return list;
 }
 
+
+ERL_NIF_TERM
+circle_to_bounding_box(ErlNifEnv *env, double lat, double lon, double radius)
+{
+    GeoDegreePoint point (lon, lat);
+    unsigned n_boxes;
+    GeoDegreeRectangle *bounds = bounding_coordinates(point, radius, EARTH_RADIUS, &n_boxes);
+
+    if (n_boxes == 0)
+        return enif_make_list(env, 0);
+
+    ERL_NIF_TERM array[2];
+
+    for(unsigned i = 0; i < n_boxes; i++)
+    {
+        GeoPoint<GeoDegreeCoordinateSystem> ll = bounds[i].ll();
+        GeoPoint<GeoDegreeCoordinateSystem> ur = bounds[i].ur();
+
+        ERL_NIF_TERM ll_term = enif_make_tuple2(env, enif_make_double(env, ll.x()), enif_make_double(env, ll.y()));
+        ERL_NIF_TERM ur_term = enif_make_tuple2(env, enif_make_double(env, ur.x()), enif_make_double(env, ur.y()));
+
+        array[i] = enif_make_tuple2(env, ll_term, ur_term);
+    }
+
+    delete [] bounds;
+
+    return enif_make_list_from_array(env, array, n_boxes);
+}
 
 ERL_NIF_TERM prefix_to_term(ErlNifEnv *env, Prefix& prefix)
 {

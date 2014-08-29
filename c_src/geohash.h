@@ -19,6 +19,7 @@ extern "C" {
     void *build_index(void **vectors, int *values, unsigned length);
     ERL_NIF_TERM index_to_term(ErlNifEnv *env, void *index);
     ERL_NIF_TERM point_index_values(ErlNifEnv *env, double lat, double lon, void *index);
+    ERL_NIF_TERM circle_to_bounding_box(ErlNifEnv *env, double lat, double lon, double radius);
 
 #ifdef __cplusplus
 }

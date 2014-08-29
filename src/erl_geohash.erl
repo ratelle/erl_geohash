@@ -3,6 +3,7 @@
 -export([
     init/0,
     build_index/2,
+    circle_to_bounding_box/1,
     async_build_index/2,
     hashes_to_term/1,
     hashes_to_rectangles/1,
@@ -39,6 +40,9 @@ priv_dir() ->
             filename:join(AppPath, "priv");
         Dir -> Dir
     end.
+
+circle_to_bounding_box(_Circle) ->
+    {error, geohash_nif_not_loaded}.
 
 radius_list_to_hashes(_RadiusList, _Iterations) ->
     {error, geohash_nif_not_loaded}.
