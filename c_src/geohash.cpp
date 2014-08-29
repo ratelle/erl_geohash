@@ -86,6 +86,10 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
 {
     PrefixVector all_prefixes;
 
+    double xrange[2];
+    double yrange[2];
+    GeoDegreeCoordinateSystem::GetRanges(xrange, yrange);
+
     for (unsigned i = 0; i < length; i++)
     {
         ERL_NIF_TERM current;
@@ -108,6 +112,9 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
             return NULL;
 
         if (!enif_get_double(env, tuple[2], &distance))
+            return NULL;
+
+        if (lon < xrange[0] || lon > xrange[1] || lat < yrange[0] || lat > yrange[1] || distance < 0 || distance > MAX_DISTANCE )
             return NULL;
 
         PrefixVector prefixes = internal_radius_to_hashes(lat, lon, distance, iterations);
