@@ -61,10 +61,7 @@ ejson_to_circle({EJsonCircle}) ->
     {_, Latitude} = lists:keyfind(<<"lat">>, 1, EJsonCircle),
     {_, Longitude} = lists:keyfind(<<"lon">>, 1, EJsonCircle),
     {_, Radius} = lists:keyfind(<<"radius">>, 1, EJsonCircle),
-    case is_float(Latitude) andalso is_float(Longitude) andalso is_float(Radius) of
-        true -> {Latitude, Longitude, Radius};
-        false -> error(badcircle)
-    end.
+    {float(Latitude), float(Longitude), float(Radius)}.
 
 build_index(_Lists, _Iterations) ->
     {error, geohash_nif_not_loaded}.
