@@ -79,7 +79,7 @@ nif_async_finish_build_index(_Tid) ->
 async_build_index(Lists, Iterations) ->
     {Ref, Tid} = nif_async_start_build_index(Lists, Iterations),
     receive
-        {Ref, error} ->
+        {Ref, undefined} ->
             nif_async_finish_build_index(Tid),
             error(badarg);
         {Ref, Result} ->

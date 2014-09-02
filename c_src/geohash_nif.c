@@ -123,7 +123,7 @@ nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+internal_build_index(ErlNifEnv *env, ERL_NIF_TERM lst, ERL_NIF_TERM iterations)
 {
     unsigned len;
     int *values = NULL;
@@ -133,7 +133,7 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     int successful = 0;
     ERL_NIF_TERM retval;
 
-    if (!enif_get_list_length(env, argv[0], &len))
+    if (!enif_get_list_length(env, lst, &len))
         goto cleanup;
 
     values = (int *)malloc(len * sizeof(int));
@@ -141,7 +141,6 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     errors = (ERL_NIF_TERM *)malloc(len * sizeof(ERL_NIF_TERM));
 
     unsigned i;
-    ERL_NIF_TERM lst = argv[0];
     for (i = 0; i < len; i++)
     {
         ERL_NIF_TERM current;
@@ -160,7 +159,7 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         if (!enif_get_int(env, tuple[0], &value))
             goto cleanup;
 
-        ERL_NIF_TERM hashes = internal_radius_list_to_hashes(env, tuple[1], argv[1]);
+        ERL_NIF_TERM hashes = internal_radius_list_to_hashes(env, tuple[1], iterations);
 
         if (!enif_get_resource(env, hashes, hashes_type, (void**)(&wrapper)))
             errors[n_errors++] = tuple[0];
@@ -182,7 +181,7 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
  cleanup:
 
     if (!successful)
-        retval = enif_make_badarg(env);
+        retval = atom_undefined;
 
     if (values != NULL)
         free(values);
@@ -194,27 +193,33 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return retval;
 }
 
+static ERL_NIF_TERM
+nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ERL_NIF_TERM result = internal_build_index(env, argv[0], argv[1]);
+
+    if (result == atom_undefined)
+        return enif_make_badarg(env);
+    else
+        return result;
+
+}
+
 struct index_env {
     ErlNifEnv *env;
     ERL_NIF_TERM ref;
     ErlNifPid pid;
-    ERL_NIF_TERM argv[2];
+    ERL_NIF_TERM lst;
+    ERL_NIF_TERM iterations;
 };
 
 static void *
 async_build_index_thread(void *args)
 {
     struct index_env *ie = (struct index_env*)args;
+    ERL_NIF_TERM result = internal_build_index(ie->env, ie->lst, ie->iterations);
 
-    ERL_NIF_TERM result = nif_build_index(ie->env, 2, ie->argv);
-    ERL_NIF_TERM msg;
-
-    if (enif_is_exception(ie->env, result))
-        msg = enif_make_tuple2(ie->env, ie->ref, atom_error);
-    else
-        msg = enif_make_tuple2(ie->env, ie->ref, result);
-
-    enif_send(NULL, &(ie->pid), ie->env, msg);
+    enif_send(NULL, &(ie->pid), ie->env, enif_make_tuple2(ie->env, ie->ref, result));
 
     enif_free_env(ie->env);
     free(ie);
@@ -230,8 +235,8 @@ nif_async_start_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     struct index_env *ie = malloc(sizeof(struct index_env));
     ie->env = enif_alloc_env();
-    ie->argv[0] = enif_make_copy(ie->env, argv[0]);
-    ie->argv[1] = enif_make_copy(ie->env, argv[1]);
+    ie->lst = enif_make_copy(ie->env, argv[0]);
+    ie->iterations = enif_make_copy(ie->env, argv[1]);
     ie->ref = enif_make_copy(ie->env, ref);
     enif_self(env, &(ie->pid));
 
