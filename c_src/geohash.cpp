@@ -95,7 +95,10 @@ radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, unsigned length, int ite
         const ERL_NIF_TERM *tuple;
         int arity;
         enif_get_list_cell(env, lst, &current, &lst);
-        enif_get_tuple(env, current, &arity, &tuple);
+
+        if (!enif_get_tuple(env, current, &arity, &tuple))
+            return NULL;
+
         if (arity != 3)
             return NULL;
 

@@ -62,7 +62,9 @@ nif_circle_to_bounding_box(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM *tuple;
     int arity;
-    enif_get_tuple(env, argv[0], &arity, &tuple);
+
+    if (!enif_get_tuple(env, argv[0], &arity, &tuple))
+        return enif_make_badarg(env);
 
     if (arity != 3)
         return enif_make_badarg(env);
@@ -148,7 +150,9 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM lst, ERL_NIF_TERM iterations)
         int arity;
 
         enif_get_list_cell(env, lst, &current, &lst);
-        enif_get_tuple(env, current, &arity, &tuple);
+
+        if (!enif_get_tuple(env, current, &arity, &tuple))
+            goto cleanup;
 
         if (arity != 2)
             goto cleanup;
