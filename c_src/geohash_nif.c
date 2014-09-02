@@ -143,6 +143,7 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM lst, ERL_NIF_TERM iterations)
     errors = (ERL_NIF_TERM *)malloc(len * sizeof(ERL_NIF_TERM));
 
     unsigned i;
+    unsigned j = 0;
     for (i = 0; i < len; i++)
     {
         ERL_NIF_TERM current;
@@ -169,8 +170,8 @@ internal_build_index(ErlNifEnv *env, ERL_NIF_TERM lst, ERL_NIF_TERM iterations)
             errors[n_errors++] = tuple[0];
         else
         {
-            values[i] = value;
-            vectors[i] = *wrapper;
+            values[j] = value;
+            vectors[j++] = *wrapper;
         }
     }
 
