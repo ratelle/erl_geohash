@@ -83,23 +83,22 @@ nif_circle_to_bounding_box(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return circle_to_bounding_box(env, lat, lon, radius);
 }
 
-
 static ERL_NIF_TERM
-nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+internal_radius_list_to_hashes(ErlNifEnv *env, ERL_NIF_TERM lst, ERL_NIF_TERM iterations)
 {
     unsigned len;
-    int iterations;
+    int it;
 
-    if (!enif_get_list_length(env, argv[0], &len))
-        return enif_make_badarg(env);
+    if (!enif_get_list_length(env, lst, &len))
+        return atom_undefined;
 
-    if (!enif_get_int(env, argv[1], &iterations))
-        return enif_make_badarg(env);
+    if (!enif_get_int(env, iterations, &it))
+        return atom_undefined;
 
-    void *vector_pointer = radius_list_to_hashes(env, argv[0], len, iterations);
+    void *vector_pointer = radius_list_to_hashes(env, lst, len, it);
 
     if (vector_pointer == NULL)
-        return enif_make_badarg(env);
+        return atom_undefined;
 
     void **pointer_wrapper = (void**)enif_alloc_resource(hashes_type, sizeof(void*));
 
@@ -112,11 +111,25 @@ nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
+nif_radius_list_to_hashes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+
+    ERL_NIF_TERM result = internal_radius_list_to_hashes(env, argv[0], argv[1]);
+
+    if (result == atom_undefined)
+        return enif_make_badarg(env);
+    else
+        return result;
+}
+
+static ERL_NIF_TERM
 nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned len;
     int *values = NULL;
     void **vectors = NULL;
+    ERL_NIF_TERM *errors = NULL;
+    unsigned n_errors = 0;
     int successful = 0;
     ERL_NIF_TERM retval;
 
@@ -125,6 +138,7 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     values = (int *)malloc(len * sizeof(int));
     vectors = (void **)malloc(len * sizeof(void*));
+    errors = (ERL_NIF_TERM *)malloc(len * sizeof(ERL_NIF_TERM));
 
     unsigned i;
     ERL_NIF_TERM lst = argv[0];
@@ -146,23 +160,23 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         if (!enif_get_int(env, tuple[0], &value))
             goto cleanup;
 
-        ERL_NIF_TERM hashes_argv[2] = {tuple[1], argv[1]};
-        ERL_NIF_TERM hashes = nif_radius_list_to_hashes(env, 2, hashes_argv);
+        ERL_NIF_TERM hashes = internal_radius_list_to_hashes(env, tuple[1], argv[1]);
 
         if (!enif_get_resource(env, hashes, hashes_type, (void**)(&wrapper)))
-            goto cleanup;
-
-        values[i] = value;
-        vectors[i] = *wrapper;
+            errors[n_errors++] = tuple[0];
+        else
+        {
+            values[i] = value;
+            vectors[i] = *wrapper;
+        }
     }
 
-    void *index_pointer = build_index(vectors, values, len);
+    void *index_pointer = build_index(vectors, values, len - n_errors);
     void **pointer_wrapper = (void**)enif_alloc_resource(index_type, sizeof(void*));
 
     *pointer_wrapper = index_pointer;
 
-    retval = enif_make_resource(env, (void*)pointer_wrapper);
-    enif_release_resource((void*)pointer_wrapper);
+    retval = enif_make_tuple2(env, enif_make_resource(env, (void*)pointer_wrapper), enif_make_list_from_array(env, errors, n_errors));
     successful = 1;
 
  cleanup:
@@ -174,6 +188,8 @@ nif_build_index(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         free(values);
     if (vectors != NULL)
         free(vectors);
+    if (errors != NULL)
+        free(errors);
 
     return retval;
 }
