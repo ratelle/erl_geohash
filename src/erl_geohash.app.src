@@ -1,6 +1,6 @@
 {application, erl_geohash, [
   {description, "Erlang Geohash NIF"},
-  {vsn, "1.0.10"},
+  {vsn, git},
   {applications, [
     kernel,
     stdlib
