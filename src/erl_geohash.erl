@@ -1,4 +1,5 @@
 -module(erl_geohash).
+-compile([no_native]).
 
 -export([
     init/0,
